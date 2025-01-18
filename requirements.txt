@@ -1,0 +1,6 @@
+torch
+torchtext
+pandas
+numpy==1.26.1
+matplotlib
+tiktoken
