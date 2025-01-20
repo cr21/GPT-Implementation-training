@@ -105,10 +105,10 @@ def generate_text_simple(model, tokenizer, idx, max_new_tokens, context_length):
     # idx (batch_size, n_tokens)
     for _ in range(max_new_tokens):
         # take maximum last 5 of context length only 
-        idx = idx[:, -context_length:] # (batch_size, context_length)
+        idx_cond = idx[:, -context_length:] # (batch_size, context_length)
         with torch.no_grad():
             # idx (batch_size, n_tokens + 1)
-            logits = model(idx) # batchsize, n_tokens, vocab_size
+            logits = model(idx_cond) # batchsize, n_tokens, vocab_size
         # take last token logits 
         logits = logits[:, -1, :]  # batchsize, vocab_size
         probas = torch.softmax(logits, dim=-1) # batchsize, vocab_size
