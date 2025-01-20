@@ -97,6 +97,37 @@ def train_simple_model(model, tokenizer, train_dataloader, valid_dataloader,
         generate_and_print_text(model, tokenizer, start_context, device)
     return train_losses, valid_losses, track_tokens_seen
 
+
+def generate(model, idx, max_new_tokens, context_length, temperature=1.0, top_k=None, eos_token=None, device=None):
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    model = model.to(device)
+    idx = idx.to(device)
+    for _ in range(max_new_tokens):
+        idx_cond = idx[:, -context_length:]
+        with torch.no_grad():
+            logits = model(idx_cond)
+        logits = logits[:, -1, :]
+        
+        if top_k is not None:
+            # top k sampling
+            top_logits, top_pos = torch.topk(logits, top_k)
+            min_logit = top_logits[:,-1]
+            logits = torch.where(logits < min_logit,
+                                  torch.tensor(float('-inf')).to(logits.device),
+                                logits)
+        # temperature scaling
+        if temperature >0.0:
+            logits /= temperature
+            probs = torch.softmax(logits, dim=-1)
+            idx_next = torch.multinomial(probs, num_samples=1)
+        else:
+            idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+        if idx_next == eos_token:
+            break
+        idx = torch.cat((idx, idx_next), dim=1)
+    return idx
+
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 print(f"Using device: {device}")
 
@@ -211,14 +242,41 @@ optimizer = torch.optim.AdamW(
     model.parameters(),
     lr=0.0004, weight_decay=0.1
 )
-num_epochs = 10
-train_losses, val_losses, tokens_seen = train_simple_model(
-    model, tokenizer, train_dataloader, valid_dataloader, optimizer, device,
-    num_epochs=num_epochs, eval_freq=5, eval_iter=5,
-    start_context="Every effort moves you"
+num_epochs = 3
+# train_losses, val_losses, tokens_seen = train_simple_model(
+#     model, tokenizer, train_dataloader, valid_dataloader, optimizer, device,
+#     num_epochs=num_epochs, eval_freq=5, eval_iter=5,
+#     start_context="Every effort moves you"
+# )
+# print(train_losses)
+# print(val_losses)
+# print(tokens_seen)
+# epochs_tensor = torch.linspace(0, 10, len(train_losses))
+# plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
+
+# generate text
+model.eval()
+model.to(device)
+
+tokenizer = tiktoken.get_encoding("gpt2")
+token_ids = generate_text_simple(
+model=model,
+tokenizer=tokenizer,
+idx=text_to_token_ids("Every effort moves you", tokenizer),
+max_new_tokens=15,
+context_length=GPT_CONFIG_124M["context_length"]
 )
-print(train_losses)
-print(val_losses)
-print(tokens_seen)
-epochs_tensor = torch.linspace(0, 10, len(train_losses))
-plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
+print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+
+# generate text with top k sampling
+torch.manual_seed(123)
+token_ids = generate(
+    model=model,
+    idx=text_to_token_ids("Every effort moves you", tokenizer),
+    max_new_tokens=15,
+    context_length=GPT_CONFIG_124M["context_length"],
+    top_k=10,
+    temperature=1.4,
+    device=device
+)
+print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
