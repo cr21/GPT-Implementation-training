@@ -19,3 +19,23 @@ class GPTDataLoader(Dataset):
     
     def __getitem__(self, idx):
         return self.input_ids[idx], self.target_ids[idx]
+    
+from bytepair_encoding import BPETokenizer
+from gptdataloader import GPTDataLoader
+from torch.utils.data import DataLoader
+from torch import nn
+import torch
+def create_dataloader_v1(txt:str, batch_size:int=4, context_size:int=256, stride:int=128,
+                       tokenizer:BPETokenizer=None, shuffle:bool=True, drop_last:bool=True,
+                       num_workers:int=2):
+    bpe_tokenizer = BPETokenizer("gpt2")
+
+    dataset = GPTDataLoader(txt, bpe_tokenizer, 
+                            context_size=context_size, 
+                            stride=stride)
+    gpt_dataloader = DataLoader(dataset, 
+                                batch_size=batch_size,
+                                shuffle=shuffle,
+                                drop_last=drop_last,
+                                num_workers=num_workers)
+    return gpt_dataloader
