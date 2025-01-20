@@ -88,9 +88,11 @@ class DummyGPTModel(nn.Module):
         )
         self.ln_final = LayerNorm(config["emb_dim"])
         self.lm_head = nn.Linear(config["emb_dim"], config["vocab_size"], bias=False)
+        self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     
     def forward(self, x):
         batch_size, seq_len = x.shape
+        x = x.to(self.device)
         tok_emb = self.tok_emb(x)
         pos_emb = self.pos_emb(torch.arange(0, seq_len, device=x.device))
         x = tok_emb + pos_emb
@@ -103,11 +105,14 @@ class DummyGPTModel(nn.Module):
 
 def generate_text_simple(model, tokenizer, idx, max_new_tokens, context_length):
     # idx (batch_size, n_tokens)
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    model = model.to(device)  # Move model to device
+    idx = idx.to(device)      # Move input tensor to device
+    
     for _ in range(max_new_tokens):
-        # take maximum last 5 of context length only 
+        # take maximum last context_length tokens only 
         idx_cond = idx[:, -context_length:] # (batch_size, context_length)
         with torch.no_grad():
-            # idx (batch_size, n_tokens + 1)
             logits = model(idx_cond) # batchsize, n_tokens, vocab_size
         # take last token logits 
         logits = logits[:, -1, :]  # batchsize, vocab_size
@@ -115,7 +120,7 @@ def generate_text_simple(model, tokenizer, idx, max_new_tokens, context_length):
         idx_next = torch.argmax(probas, dim=-1, keepdim=True) # batchsize, 1
         idx = torch.cat((idx, idx_next), dim=1) # batchsize, n_tokens + 1
         
-    return idx
+    return idx.cpu()  # Return tensor back to CPU
 
 if __name__ == "__main__":
     print(GPT_CONFIG_124M)
@@ -204,3 +209,5 @@ if __name__ == "__main__":
     print("Output length:", len(out_generate_text[0]))
     decoded_text = tokenizer.decode(out_generate_text.squeeze(0).tolist())
     print(decoded_text)
+    print("hi")
+    
