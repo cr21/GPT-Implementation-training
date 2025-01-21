@@ -128,155 +128,156 @@ def generate(model, idx, max_new_tokens, context_length, temperature=1.0, top_k=
         idx = torch.cat((idx, idx_next), dim=1)
     return idx
 
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-print(f"Using device: {device}")
+if __name__ == "__main__":
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using device: {device}")
 
-start_context = "Every Effort Counts"
-tokenizer = tiktoken.get_encoding("gpt2")
-model = DummyGPTModel(config=GPT_CONFIG_124M)
-model = model.to(device)  # Move model to device
+    start_context = "Every Effort Counts"
+    tokenizer = tiktoken.get_encoding("gpt2")
+    model = DummyGPTModel(config=GPT_CONFIG_124M)
+    model = model.to(device)  # Move model to device
 
-token_ids = generate_text_simple(model=model,
-                               tokenizer=tokenizer,
-                               idx=text_to_token_ids(start_context, tokenizer),
-                               max_new_tokens=10,
-                               context_length=GPT_CONFIG_124M["context_length"])
-print(token_ids)
-print(token_ids_to_text(token_ids, tokenizer))
+    token_ids = generate_text_simple(model=model,
+                                tokenizer=tokenizer,
+                                idx=text_to_token_ids(start_context, tokenizer),
+                                max_new_tokens=10,
+                                context_length=GPT_CONFIG_124M["context_length"])
+    print(token_ids)
+    print(token_ids_to_text(token_ids, tokenizer))
 
-### loss
+    ### loss
 
-inputs = torch.tensor([[16833, 3626, 6100], # ["every effort moves",
-                        [40, 1107, 588]]) # "I really like"]
-targets = torch.tensor([[3626, 6100, 345], # ["effort moves you",
-                        [1107, 588, 11311]]) # "really like chocolate"]
-print(inputs.shape)
-print(targets.shape)
-with torch.no_grad():
-    logits = model(inputs)
-logits =torch.softmax(logits, dim=-1)
-print(logits.shape)
-token_ids = torch.argmax(logits, dim=-1, keepdim=True)
-print(token_ids.shape)
-print(token_ids)
-print(f"Targets batch 1: {token_ids_to_text(targets[0], tokenizer)}")
-print(f"Outputs batch 1:"
-f" {token_ids[0].flatten()} {token_ids_to_text(token_ids[0].flatten(), tokenizer)}")
-text_idx = 0
-target_probs1=logits[text_idx, [0, 1, 2], targets[text_idx]]
-print(f"Target probs batch 1: {target_probs1}")
-print(f"Target probs batch 1: {target_probs1}")
-text_idx = 1
-print(logits.shape)
-print(targets[text_idx])
-target_probas_2 = logits[text_idx, [0, 1, 2], targets[text_idx]]
-print("Text 2:", target_probas_2)
-
-
+    inputs = torch.tensor([[16833, 3626, 6100], # ["every effort moves",
+                            [40, 1107, 588]]) # "I really like"]
+    targets = torch.tensor([[3626, 6100, 345], # ["effort moves you",
+                            [1107, 588, 11311]]) # "really like chocolate"]
+    print(inputs.shape)
+    print(targets.shape)
+    with torch.no_grad():
+        logits = model(inputs)
+    logits =torch.softmax(logits, dim=-1)
+    print(logits.shape)
+    token_ids = torch.argmax(logits, dim=-1, keepdim=True)
+    print(token_ids.shape)
+    print(token_ids)
+    print(f"Targets batch 1: {token_ids_to_text(targets[0], tokenizer)}")
+    print(f"Outputs batch 1:"
+    f" {token_ids[0].flatten()} {token_ids_to_text(token_ids[0].flatten(), tokenizer)}")
+    text_idx = 0
+    target_probs1=logits[text_idx, [0, 1, 2], targets[text_idx]]
+    print(f"Target probs batch 1: {target_probs1}")
+    print(f"Target probs batch 1: {target_probs1}")
+    text_idx = 1
+    print(logits.shape)
+    print(targets[text_idx])
+    target_probas_2 = logits[text_idx, [0, 1, 2], targets[text_idx]]
+    print("Text 2:", target_probas_2)
 
 
-## calculate loss
-file_path = "the-verdict.txt"
-with open(file_path, "r", encoding="utf-8") as file:
-    text_data = file.read()
 
-total_characters = len(text_data)
-total_tokens = len(tokenizer.encode(text_data))
-print("Characters:", total_characters)
-print("Tokens:", total_tokens)
 
-# create dataloader
-train_ratio = 0.9
-val_ratio = 0.1
-split_idx  =   int(train_ratio * total_characters)
+    ## calculate loss
+    file_path = "the-verdict.txt"
+    with open(file_path, "r", encoding="utf-8") as file:
+        text_data = file.read()
 
-train_data = text_data[:split_idx]
+    total_characters = len(text_data)
+    total_tokens = len(tokenizer.encode(text_data))
+    print("Characters:", total_characters)
+    print("Tokens:", total_tokens)
 
-valid_data = text_data[split_idx:]
+    # create dataloader
+    train_ratio = 0.9
+    val_ratio = 0.1
+    split_idx  =   int(train_ratio * total_characters)
 
-train_dataloader = create_dataloader_v1(
-    txt=train_data,
-    tokenizer=tokenizer,
-    batch_size=2,
-    context_size=GPT_CONFIG_124M["context_length"],
-    stride=GPT_CONFIG_124M["context_length"],
-    shuffle=True,
-    drop_last=True,
-    num_workers=0
-)
-valid_dataloader = create_dataloader_v1(
-    txt=valid_data,
-    tokenizer=tokenizer,
-    batch_size=2,
-    context_size=GPT_CONFIG_124M["context_length"],
-    stride=GPT_CONFIG_124M["context_length"],
-    shuffle=False,
-    drop_last=False,
-    num_workers=0
-)
-print(f"Train dataset size: {len(train_dataloader)}")
-print(f"Validation dataset size: {len(valid_dataloader)}")
-print("Train loader:")
-for x, y in train_dataloader:
-    print(x.shape, y.shape)
-print("\nValidation loader:")
-for x, y in valid_dataloader:
-    print(x.shape, y.shape)
+    train_data = text_data[:split_idx]
 
-# calculate loss of batch
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-print(f"Using device: {device}")
-model = DummyGPTModel(config=GPT_CONFIG_124M)
-model.to(device)
-with torch.no_grad():
-    train_loss = calc_loss_loader(train_dataloader, model, device)
-    valid_loss = calc_loss_loader(valid_dataloader, model, device)
-print(f"Train loss: {train_loss}")
-print(f"Validation loss: {valid_loss}")
+    valid_data = text_data[split_idx:]
 
-# train model
-torch.manual_seed(123)
-model = DummyGPTModel(GPT_CONFIG_124M)
-model.to(device)
-optimizer = torch.optim.AdamW(
-    model.parameters(),
-    lr=0.0004, weight_decay=0.1
-)
-num_epochs = 3
-# train_losses, val_losses, tokens_seen = train_simple_model(
-#     model, tokenizer, train_dataloader, valid_dataloader, optimizer, device,
-#     num_epochs=num_epochs, eval_freq=5, eval_iter=5,
-#     start_context="Every effort moves you"
-# )
-# print(train_losses)
-# print(val_losses)
-# print(tokens_seen)
-# epochs_tensor = torch.linspace(0, 10, len(train_losses))
-# plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
+    train_dataloader = create_dataloader_v1(
+        txt=train_data,
+        tokenizer=tokenizer,
+        batch_size=2,
+        context_size=GPT_CONFIG_124M["context_length"],
+        stride=GPT_CONFIG_124M["context_length"],
+        shuffle=True,
+        drop_last=True,
+        num_workers=0
+    )
+    valid_dataloader = create_dataloader_v1(
+        txt=valid_data,
+        tokenizer=tokenizer,
+        batch_size=2,
+        context_size=GPT_CONFIG_124M["context_length"],
+        stride=GPT_CONFIG_124M["context_length"],
+        shuffle=False,
+        drop_last=False,
+        num_workers=0
+    )
+    print(f"Train dataset size: {len(train_dataloader)}")
+    print(f"Validation dataset size: {len(valid_dataloader)}")
+    print("Train loader:")
+    for x, y in train_dataloader:
+        print(x.shape, y.shape)
+    print("\nValidation loader:")
+    for x, y in valid_dataloader:
+        print(x.shape, y.shape)
 
-# generate text
-model.eval()
-model.to(device)
+    # calculate loss of batch
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using device: {device}")
+    model = DummyGPTModel(config=GPT_CONFIG_124M)
+    model.to(device)
+    with torch.no_grad():
+        train_loss = calc_loss_loader(train_dataloader, model, device)
+        valid_loss = calc_loss_loader(valid_dataloader, model, device)
+    print(f"Train loss: {train_loss}")
+    print(f"Validation loss: {valid_loss}")
 
-tokenizer = tiktoken.get_encoding("gpt2")
-token_ids = generate_text_simple(
-model=model,
-tokenizer=tokenizer,
-idx=text_to_token_ids("Every effort moves you", tokenizer),
-max_new_tokens=15,
-context_length=GPT_CONFIG_124M["context_length"]
-)
-print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+    # train model
+    torch.manual_seed(123)
+    model = DummyGPTModel(GPT_CONFIG_124M)
+    model.to(device)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=0.0004, weight_decay=0.1
+    )
+    num_epochs = 3
+    # train_losses, val_losses, tokens_seen = train_simple_model(
+    #     model, tokenizer, train_dataloader, valid_dataloader, optimizer, device,
+    #     num_epochs=num_epochs, eval_freq=5, eval_iter=5,
+    #     start_context="Every effort moves you"
+    # )
+    # print(train_losses)
+    # print(val_losses)
+    # print(tokens_seen)
+    # epochs_tensor = torch.linspace(0, 10, len(train_losses))
+    # plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
 
-# generate text with top k sampling
-torch.manual_seed(123)
-token_ids = generate(
+    # generate text
+    model.eval()
+    model.to(device)
+
+    tokenizer = tiktoken.get_encoding("gpt2")
+    token_ids = generate_text_simple(
     model=model,
+    tokenizer=tokenizer,
     idx=text_to_token_ids("Every effort moves you", tokenizer),
     max_new_tokens=15,
-    context_length=GPT_CONFIG_124M["context_length"],
-    top_k=10,
-    temperature=1.4,
-    device=device
-)
-print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+    context_length=GPT_CONFIG_124M["context_length"]
+    )
+    print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+
+    # generate text with top k sampling
+    torch.manual_seed(123)
+    token_ids = generate(
+        model=model,
+        idx=text_to_token_ids("Every effort moves you", tokenizer),
+        max_new_tokens=15,
+        context_length=GPT_CONFIG_124M["context_length"],
+        top_k=10,
+        temperature=1.4,
+        device=device
+    )
+    print("Output text:\n", token_ids_to_text(token_ids, tokenizer))

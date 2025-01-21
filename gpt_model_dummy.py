@@ -92,9 +92,12 @@ class DummyGPTModel(nn.Module):
     
     def forward(self, x):
         batch_size, seq_len = x.shape
-        x = x.to(self.device)
+        # Move model to the same device as input tensor
+        device = x.device
+        self.to(device)
+        
         tok_emb = self.tok_emb(x)
-        pos_emb = self.pos_emb(torch.arange(0, seq_len, device=x.device))
+        pos_emb = self.pos_emb(torch.arange(0, seq_len, device=device))
         x = tok_emb + pos_emb
         x = self.drop_emb(x)
         x = self.trf_blocks(x)
@@ -121,6 +124,7 @@ def generate_text_simple(model, tokenizer, idx, max_new_tokens, context_length):
         idx = torch.cat((idx, idx_next), dim=1) # batchsize, n_tokens + 1
         
     return idx.cpu()  # Return tensor back to CPU
+
 
 if __name__ == "__main__":
     print(GPT_CONFIG_124M)
@@ -210,4 +214,5 @@ if __name__ == "__main__":
     decoded_text = tokenizer.decode(out_generate_text.squeeze(0).tolist())
     print(decoded_text)
     print("hi")
+    
     
