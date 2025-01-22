@@ -99,87 +99,89 @@ def load_weights_into_gpt(gpt, params):
         gpt.lm_head.weight = assign(gpt.lm_head.weight, params["wte"])
 
 
-settings, params = download_and_load_gpt2(
-model_size="124M", models_dir="gpt2"
-)
-gpt = DummyGPTModel(config=NEW_CONFIG)
-gpt.eval()
-params = load_weights_into_gpt(gpt, params)
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-gpt.to(device)
+if __name__ == "__main__":
 
-print("done")
+    settings, params = download_and_load_gpt2(
+    model_size="124M", models_dir="gpt2"
+    )
+    gpt = DummyGPTModel(config=NEW_CONFIG)
+    gpt.eval()
+    params = load_weights_into_gpt(gpt, params)
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    gpt.to(device)
 
-tokenizer = tiktoken.get_encoding("gpt2")
-torch.manual_seed(123)
-token_ids = generate(
-model=gpt,
-idx=text_to_token_ids("Every effort moves you", tokenizer).to(device),
-max_new_tokens=25,
-context_length=NEW_CONFIG["context_length"],
-top_k=50,
-temperature=1.5
-)
-print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
+    print("done")
+
+    tokenizer = tiktoken.get_encoding("gpt2")
+    torch.manual_seed(123)
+    token_ids = generate(
+    model=gpt,
+    idx=text_to_token_ids("Every effort moves you", tokenizer).to(device),
+    max_new_tokens=25,
+    context_length=NEW_CONFIG["context_length"],
+    top_k=50,
+    temperature=1.5
+    )
+    print("Output text:\n", token_ids_to_text(token_ids, tokenizer))
 
 
-# exercise 5.4 
+    # exercise 5.4 
 
 
-## calculate loss
-file_path = "the-verdict.txt"
-with open(file_path, "r", encoding="utf-8") as file:
-    text_data = file.read()
+    ## calculate loss
+    file_path = "the-verdict.txt"
+    with open(file_path, "r", encoding="utf-8") as file:
+        text_data = file.read()
 
-total_characters = len(text_data)
-total_tokens = len(tokenizer.encode(text_data))
-print("Characters:", total_characters)
-print("Tokens:", total_tokens)
+    total_characters = len(text_data)
+    total_tokens = len(tokenizer.encode(text_data))
+    print("Characters:", total_characters)
+    print("Tokens:", total_tokens)
 
-# create dataloader
-train_ratio = 0.9
-val_ratio = 0.1
-split_idx  =   int(train_ratio * total_characters)
+    # create dataloader
+    train_ratio = 0.9
+    val_ratio = 0.1
+    split_idx  =   int(train_ratio * total_characters)
 
-train_data = text_data[:split_idx]
+    train_data = text_data[:split_idx]
 
-valid_data = text_data[split_idx:]
+    valid_data = text_data[split_idx:]
 
-train_dataloader = create_dataloader_v1(
-    txt=train_data,
-    tokenizer=tokenizer,
-    batch_size=2,
-    context_size=GPT_CONFIG_124M["context_length"],
-    stride=GPT_CONFIG_124M["context_length"],
-    shuffle=True,
-    drop_last=True,
-    num_workers=0
-)
-valid_dataloader = create_dataloader_v1(
-    txt=valid_data,
-    tokenizer=tokenizer,
-    batch_size=2,
-    context_size=GPT_CONFIG_124M["context_length"],
-    stride=GPT_CONFIG_124M["context_length"],
-    shuffle=False,
-    drop_last=False,
-    num_workers=0
-)
-print(f"Train dataset size: {len(train_dataloader)}")
-print(f"Validation dataset size: {len(valid_dataloader)}")
-print("Train loader:")
-for x, y in train_dataloader:
-    print(x.shape, y.shape)
-print("\nValidation loader:")
-for x, y in valid_dataloader:
-    print(x.shape, y.shape)
+    train_dataloader = create_dataloader_v1(
+        txt=train_data,
+        tokenizer=tokenizer,
+        batch_size=2,
+        context_size=GPT_CONFIG_124M["context_length"],
+        stride=GPT_CONFIG_124M["context_length"],
+        shuffle=True,
+        drop_last=True,
+        num_workers=0
+    )
+    valid_dataloader = create_dataloader_v1(
+        txt=valid_data,
+        tokenizer=tokenizer,
+        batch_size=2,
+        context_size=GPT_CONFIG_124M["context_length"],
+        stride=GPT_CONFIG_124M["context_length"],
+        shuffle=False,
+        drop_last=False,
+        num_workers=0
+    )
+    print(f"Train dataset size: {len(train_dataloader)}")
+    print(f"Validation dataset size: {len(valid_dataloader)}")
+    print("Train loader:")
+    for x, y in train_dataloader:
+        print(x.shape, y.shape)
+    print("\nValidation loader:")
+    for x, y in valid_dataloader:
+        print(x.shape, y.shape)
 
-# calculate loss of batch
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-print(f"Using device: {device}")
+    # calculate loss of batch
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using device: {device}")
 
-with torch.no_grad():
-    train_loss = calc_loss_loader(train_dataloader, gpt, device)
-    valid_loss = calc_loss_loader(valid_dataloader, gpt, device)
-print(f"Train loss: {train_loss}")
-print(f"Validation loss: {valid_loss}")
+    with torch.no_grad():
+        train_loss = calc_loss_loader(train_dataloader, gpt, device)
+        valid_loss = calc_loss_loader(valid_dataloader, gpt, device)
+    print(f"Train loss: {train_loss}")
+    print(f"Validation loss: {valid_loss}")

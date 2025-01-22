@@ -5,4 +5,6 @@ numpy==1.26.1
 matplotlib
 tiktoken
 tensorflow>=2.15.0
-tqdm>=4.66
+tqdm
+urllib
+requests
