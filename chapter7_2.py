@@ -71,7 +71,8 @@ if __name__ == "__main__":
 
     # create dataloader
     num_workers = 0
-    batch_size = 1
+    batch_size = 8
+    print(device)
     torch.manual_seed(123)
     train_dataset = InstructionDataset(train_data, tokenizer)
 
