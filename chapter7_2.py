@@ -2,7 +2,7 @@ from gpt_download import download_and_load_gpt2
 from gpt_model_dummy import DummyGPTModel
 from gpt_pretrained_openai import load_weights_into_gpt
 from gpt_model_dummy import generate_text_simple
-from chapter5 import generate, text_to_token_ids, token_ids_to_text
+from chapter5 import generate, text_to_token_ids, token_ids_to_text, calc_loss_loader, train_simple_model, plot_losses
 from chapter6 import generate_text_simple, generate
 from chapter7 import download_and_load_file, InstructionDataset, format_input, final_collate_fn, customized_collate_fn
 import torch
@@ -24,7 +24,7 @@ model_configs = {
 }
 
 if __name__ == "__main__":
-    CHOOSE_MODEL = "gpt2-medium (355M)"
+    CHOOSE_MODEL = "gpt2-small (124M)"
     BASE_CONFIG.update(model_configs[CHOOSE_MODEL])
     model_size = CHOOSE_MODEL.split(" ")[-1].lstrip("(").rstrip(")")
     settings, params = download_and_load_gpt2(
@@ -65,11 +65,13 @@ if __name__ == "__main__":
     input_text = format_input(val_data[0])
     model = DummyGPTModel(BASE_CONFIG)
     load_weights_into_gpt(model, params)
-    model.eval();
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    #model.to(device)
+    #model.eval();
 
     # create dataloader
     num_workers = 0
-    batch_size = 8
+    batch_size = 1
     torch.manual_seed(123)
     train_dataset = InstructionDataset(train_data, tokenizer)
 
@@ -97,16 +99,62 @@ if __name__ == "__main__":
     
     input_text = format_input(val_data[0])
     print(input_text)
-    token_ids = generate(
-        model=model, 
-        idx=text_to_token_ids(input_text, tokenizer),  
-        max_new_tokens=35,
-        context_length=BASE_CONFIG["context_length"],
-        device=device, 
-        eos_token=50256,
-        top_k=1
+    # token_ids = generate(
+    #     model=model, 
+    #     idx=text_to_token_ids(input_text, tokenizer),  
+    #     max_new_tokens=35,
+    #     context_length=BASE_CONFIG["context_length"],
+    #     device=device, 
+    #     eos_token=50256,
+    #     top_k=1
+    # )
+    # print("--------------------------------")
+    # generated_text = token_ids_to_text(token_ids, tokenizer)
+    # print("generated text:")
+    # print(generated_text)
+
+    # Before Training Loss
+    # model.to(device)
+    # torch.manual_seed(123)
+    # with torch.no_grad():
+    #     train_loss = calc_loss_loader(
+    #     train_loader, model, device, num_batches=5
+    #     )
+    #     val_loss = calc_loss_loader(
+    #     validation_loader, model, device, num_batches=5
+    #     )
+    # print("Training loss:", train_loss)
+    # print("Validation loss:", val_loss)
+    # torch.save(model.state_dict(), "instruction_model.pth")
+    # model_state_dict = torch.load("instruction_model.pth", map_location=device)
+    # model.load_state_dict(model_state_dict)
+
+    # train model
+    #train_simple_model(model, train_loader, validation_loader, device, num_epochs=10)
+    import time
+    start_time = time.time()
+    torch.manual_seed(123)
+    import gc
+    gc.collect()
+    if device.type == 'mps':
+        torch.mps.empty_cache()
+    
+    model.to(device)
+    model.train()
+    optimizer = torch.optim.AdamW(
+    model.parameters(), lr=0.00005, weight_decay=0.1
     )
-    print("--------------------------------")
-    generated_text = token_ids_to_text(token_ids, tokenizer)
-    print("generated text:")
-    print(generated_text)
+    num_epochs = 3
+    train_losses, val_losses, tokens_seen = train_simple_model(
+    model, tokenizer, train_loader, validation_loader, optimizer, device,
+    num_epochs=num_epochs, eval_freq=5, eval_iter=5,
+    start_context=format_input(val_data[0])
+    )
+    gc.collect()
+    if device.type == 'mps':
+        torch.mps.empty_cache()
+    end_time = time.time()
+    torch.save(model.state_dict(), "instruction_model.pth")
+    print(f"Training time: {end_time - start_time:.2f} seconds") 
+    epochs_tensor = torch.linspace(0, num_epochs, len(train_losses))   
+    plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
